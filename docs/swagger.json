@@ -1,0 +1,55 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "NexaVision Platform API Specification",
+    "description": "Production-grade OpenAPI documentation for NexaVision AI Vision Intelligence Platform.",
+    "version": "2.4.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register a new platform user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created successfully" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate user & issue JWT pair",
+        "responses": {
+          "200": { "description": "JWT tokens returned" }
+        }
+      }
+    },
+    "/recognition/process-frame": {
+      "post": {
+        "summary": "Process camera image frame for facial detection & recognition",
+        "responses": {
+          "200": { "description": "Bounding boxes & matched profiles returned" }
+        }
+      }
+    }
+  }
+}
