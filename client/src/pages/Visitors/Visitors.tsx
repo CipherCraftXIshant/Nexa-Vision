@@ -122,7 +122,7 @@ export const Visitors: React.FC = () => {
               <button
                 onClick={() => {
                   setSelectedVisitor(visitor);
-                  setConvertName(visitor.name !== 'Unknown Visitor' ? visitor.name : '');
+                  setConvertName(visitor.name && visitor.name !== 'Unknown Visitor' ? visitor.name : '');
                   setIsConvertModalOpen(true);
                 }}
                 className="flex-1 py-2 rounded-xl bg-brand-600/20 hover:bg-brand-600/30 text-brand-accent border border-brand-500/30 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
