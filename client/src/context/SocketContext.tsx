@@ -13,7 +13,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const s = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+    const s = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001', {
       transports: ['websocket', 'polling']
     });
 
