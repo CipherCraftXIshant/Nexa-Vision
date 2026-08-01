@@ -1,11 +1,12 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Camera, RefreshCw, ShieldAlert, CheckCircle2, Eye, Cpu, Zap, Radio, Sliders } from 'lucide-react';
+import { Camera, CameraOff, RefreshCw, ShieldAlert, CheckCircle2, Eye, Cpu, Zap, Radio, Sliders } from 'lucide-react';
 import { api } from '../../services/api';
 
 export const LiveCamera: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [streamActive, setStreamActive] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(true);
   const [cameraLocation, setCameraLocation] = useState('Cam 01 - Main Entrance');
   const [detectedPerson, setDetectedPerson] = useState<any>(null);
   const [fps, setFps] = useState(30);
@@ -39,6 +40,19 @@ export const LiveCamera: React.FC = () => {
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setStreamActive(false);
+  };
+
+  const toggleCamera = async () => {
+    if (cameraEnabled) {
+      stopWebcam();
+      setCameraEnabled(false);
+      setDetectedPerson(null);
+    } else {
+      setCameraEnabled(true);
+      await startWebcam();
     }
   };
 
@@ -94,11 +108,12 @@ export const LiveCamera: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!cameraEnabled) return;
     const interval = setInterval(() => {
       captureAndRecognize();
     }, 3000);
     return () => clearInterval(interval);
-  }, [streamActive, cameraLocation]);
+  }, [streamActive, cameraEnabled, cameraLocation]);
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
@@ -125,11 +140,23 @@ export const LiveCamera: React.FC = () => {
 
           <button
             onClick={captureAndRecognize}
-            disabled={isScanning}
-            className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-md shadow-brand-500/20"
+            disabled={isScanning || !cameraEnabled}
+            className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs flex items-center gap-2 transition-all shadow-md shadow-brand-500/20"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
             <span>Process Frame</span>
+          </button>
+
+          <button
+            onClick={toggleCamera}
+            className={`px-4 py-2 rounded-xl font-semibold text-xs flex items-center gap-2 transition-all shadow-md ${
+              cameraEnabled
+                ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'
+                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'
+            }`}
+          >
+            {cameraEnabled ? <CameraOff className="w-3.5 h-3.5" /> : <Camera className="w-3.5 h-3.5" />}
+            <span>{cameraEnabled ? 'Stop Camera' : 'Start Camera'}</span>
           </button>
         </div>
       </div>
@@ -142,11 +169,11 @@ export const LiveCamera: React.FC = () => {
             autoPlay
             playsInline
             muted
-            className={`w-full h-full object-cover ${streamActive ? 'block' : 'hidden'}`}
+            className={`w-full h-full object-cover ${streamActive && cameraEnabled ? 'block' : 'hidden'}`}
           />
           <canvas ref={canvasRef} className="hidden" />
 
-          {!streamActive && (
+          {cameraEnabled && !streamActive && (
             <div className="relative w-full h-full bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
               <img
                 src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80"
@@ -159,6 +186,18 @@ export const LiveCamera: React.FC = () => {
                 </div>
                 <h3 className="text-sm font-bold text-white">Simulated Stream Mode Active</h3>
                 <p className="text-xs text-slate-400 max-w-sm">Webcam feed stream active with AI frame inference relay.</p>
+              </div>
+            </div>
+          )}
+
+          {!cameraEnabled && (
+            <div className="relative w-full h-full bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+              <div className="relative z-10 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 text-red-400 flex items-center justify-center mx-auto border border-red-500/30">
+                  <CameraOff className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-white">Camera Off</h3>
+                <p className="text-xs text-slate-400 max-w-sm">Recognition is paused. Click "Start Camera" to resume the live feed.</p>
               </div>
             </div>
           )}

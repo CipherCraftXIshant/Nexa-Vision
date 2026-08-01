@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Camera, Upload, CheckCircle2, AlertTriangle, ShieldCheck, Sparkles, User, Save } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Camera, CameraOff, Upload, CheckCircle2, AlertTriangle, ShieldCheck, Sparkles, User, Save, RotateCcw } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -11,23 +11,54 @@ export const FaceRegistration: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [streamActive, setStreamActive] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (cameraEnabled && !capturedImage) {
+      startWebcam();
+    }
+    return () => {
+      stopWebcam();
+    };
+  }, [cameraEnabled]);
 
   const startWebcam = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        setStreamActive(true);
       }
     } catch (err) {
       console.warn('Webcam unavailable');
+      setStreamActive(false);
+    }
+  };
+
+  const stopWebcam = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setStreamActive(false);
+  };
+
+  const toggleCamera = () => {
+    if (cameraEnabled) {
+      stopWebcam();
+      setCameraEnabled(false);
+    } else {
+      setCameraEnabled(true);
     }
   };
 
   const handleCapture = () => {
-    if (videoRef.current) {
+    if (videoRef.current && streamActive) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth || 640;
@@ -37,10 +68,22 @@ export const FaceRegistration: React.FC = () => {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg');
         setCapturedImage(dataUrl);
+        stopWebcam();
       }
     } else {
-      // Fallback sample portrait photo
+      // Fallback sample portrait photo when no live camera is available
       setCapturedImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80');
+    }
+  };
+
+  const handleRetake = () => {
+    setCapturedImage(null);
+    setQualityScore(null);
+    setLivenessScore(null);
+    setSuccessMsg('');
+    setErrorMsg('');
+    if (cameraEnabled) {
+      startWebcam();
     }
   };
 
@@ -109,27 +152,72 @@ export const FaceRegistration: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Webcam Capture Box */}
         <div className="p-6 rounded-3xl bg-dark-card border border-dark-border glass-panel space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Webcam Photo Capture</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Webcam Photo Capture</h3>
+            {!capturedImage && (
+              <button
+                onClick={toggleCamera}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1.5 transition-colors ${
+                  cameraEnabled
+                    ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30'
+                    : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30'
+                }`}
+              >
+                {cameraEnabled ? <CameraOff className="w-3 h-3" /> : <Camera className="w-3 h-3" />}
+                <span>{cameraEnabled ? 'Turn Off' : 'Turn On'}</span>
+              </button>
+            )}
+          </div>
 
           <div className="aspect-video bg-slate-950 rounded-2xl overflow-hidden relative border border-dark-border flex items-center justify-center">
             {capturedImage ? (
               <img src={capturedImage} alt="Captured" className="w-full h-full object-cover" />
             ) : (
-              <div className="text-center p-6 space-y-3">
-                <Camera className="w-8 h-8 text-slate-500 mx-auto" />
-                <p className="text-xs text-slate-400">Position your face within the frame with clear illumination.</p>
-              </div>
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${cameraEnabled && streamActive ? 'block' : 'hidden'}`}
+                />
+                {(!cameraEnabled || !streamActive) && (
+                  <div className="text-center p-6 space-y-3">
+                    {cameraEnabled ? (
+                      <>
+                        <Camera className="w-8 h-8 text-slate-500 mx-auto" />
+                        <p className="text-xs text-slate-400">Position your face within the frame with clear illumination.</p>
+                      </>
+                    ) : (
+                      <>
+                        <CameraOff className="w-8 h-8 text-slate-500 mx-auto" />
+                        <p className="text-xs text-slate-400">Camera is off. Turn it on to capture a live frame.</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={handleCapture}
-              className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Capture Frame</span>
-            </button>
+            {capturedImage ? (
+              <button
+                onClick={handleRetake}
+                className="flex-1 py-2.5 rounded-xl bg-dark-bg border border-dark-border text-slate-300 hover:text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Retake</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleCapture}
+                className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-colors"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>Capture Frame</span>
+              </button>
+            )}
 
             <button
               onClick={() => fileInputRef.current?.click()}
