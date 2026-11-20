@@ -70,10 +70,7 @@ export const FaceRegistration: React.FC = () => {
         setCapturedImage(dataUrl);
         stopWebcam();
       }
-    } else {
-      // Fallback sample portrait photo when no live camera is available
-      setCapturedImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80');
-    }
+    } else setErrorMsg('Camera is unavailable. Connect a camera or upload a real image to continue.');
   };
 
   const handleRetake = () => {
@@ -111,8 +108,8 @@ export const FaceRegistration: React.FC = () => {
       });
 
       if (res.data.success) {
-        setQualityScore(res.data.qualityScore || 0.92);
-        setLivenessScore(0.95);
+        setQualityScore(typeof res.data.qualityScore === 'number' ? res.data.qualityScore : null);
+        setLivenessScore(typeof res.data.livenessScore === 'number' ? res.data.livenessScore : null);
         setSuccessMsg('Face profile and 128-d embedding saved successfully!');
       }
     } catch (err: any) {
@@ -245,20 +242,20 @@ export const FaceRegistration: React.FC = () => {
               <div className="p-4 rounded-2xl bg-dark-bg/60 border border-dark-border space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">Face Blurriness & Illumination</span>
-                  <span className="font-mono font-bold text-emerald-400">OPTIMAL (94%)</span>
+                  <span className="font-mono font-bold text-emerald-400">{qualityScore === null ? 'PENDING' : `${(qualityScore * 100).toFixed(0)}%`}</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                  <div className="w-[94%] h-full bg-emerald-400 rounded-full" />
+                  <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${(qualityScore || 0) * 100}%` }} />
                 </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-dark-bg/60 border border-dark-border space-y-3">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Anti-Spoofing Liveness Score</span>
-                  <span className="font-mono font-bold text-brand-accent">PASSED (96%)</span>
+                  <span className="text-slate-400">Liveness estimate</span>
+                  <span className="font-mono font-bold text-brand-accent">{livenessScore === null ? 'NOT REPORTED' : `${(livenessScore * 100).toFixed(0)}%`}</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
-                  <div className="w-[96%] h-full bg-brand-accent rounded-full" />
+                  <div className="h-full bg-brand-accent rounded-full" style={{ width: `${(livenessScore || 0) * 100}%` }} />
                 </div>
               </div>
 

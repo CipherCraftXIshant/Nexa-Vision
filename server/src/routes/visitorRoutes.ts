@@ -6,6 +6,7 @@ import { checkRole } from '../middleware/rbac';
 const router = Router();
 
 router.use(authenticateToken);
+router.use(checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATOR']));
 
 router.get('/', getVisitors);
 router.put('/:id', checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATOR']), updateVisitor);

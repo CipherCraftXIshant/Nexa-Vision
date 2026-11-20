@@ -30,6 +30,7 @@ api.interceptors.response.use(
           if (res.data.success) {
             localStorage.setItem('nexavision_access_token', res.data.accessToken);
             localStorage.setItem('nexavision_refresh_token', res.data.refreshToken);
+            window.dispatchEvent(new Event('nexavision:session-updated'));
             originalRequest.headers.Authorization = `Bearer ${res.data.accessToken}`;
             return api(originalRequest);
           }

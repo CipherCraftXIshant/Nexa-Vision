@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User';
@@ -9,6 +12,8 @@ import { Notification } from '../models/Notification';
 
 const seedDatabase = async () => {
   try {
+    const seedPassword = process.env.SEED_PASSWORD;
+    if (!seedPassword || seedPassword.length < 12) throw new Error('Set SEED_PASSWORD to a unique value of at least 12 characters before running the destructive seed script.');
     const connStr = process.env.MONGODB_URI || 'mongodb://localhost:27017/nexavision';
     await mongoose.connect(connStr);
     console.log('[Seed] Connected to MongoDB for seeding...');
@@ -24,7 +29,7 @@ const seedDatabase = async () => {
     console.log('[Seed] Cleared old collections.');
 
     const salt = await bcrypt.genSalt(10);
-    const defaultPassword = await bcrypt.hash('Password@123', salt);
+    const defaultPassword = await bcrypt.hash(seedPassword, salt);
 
     // Create Admin and Users
     const users = await User.insertMany([
@@ -71,18 +76,6 @@ const seedDatabase = async () => {
     ]);
 
     console.log(`[Seed] Created ${users.length} default users.`);
-
-    // Seed Face Embeddings for Alex and Sarah
-    for (const u of users.slice(0, 2)) {
-      const mockVec = Array.from({ length: 128 }, (_, i) => Math.sin(i * 0.1));
-      await FaceEmbedding.create({
-        userId: u._id,
-        embedding: mockVec,
-        imagePath: u.avatar || '',
-        qualityScore: 0.94,
-        livenessScore: 0.96
-      });
-    }
 
     // Seed Visitors
     const visitors = await Visitor.insertMany([
@@ -171,8 +164,8 @@ const seedDatabase = async () => {
 
     console.log('[Seed] Database seeding completed successfully.');
     process.exit(0);
-  } catch (error) {
-    console.error('[Seed] Seeding error:', error);
+  } catch {
+    console.error('[Seed] Seeding failed. Check database configuration and seed environment variables.');
     process.exit(1);
   }
 };

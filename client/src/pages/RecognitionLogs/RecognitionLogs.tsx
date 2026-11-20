@@ -24,8 +24,8 @@ export const RecognitionLogs: React.FC = () => {
         setLogs(res.data.logs);
         setTotal(res.data.total);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setLogs([]);
     }
   };
 

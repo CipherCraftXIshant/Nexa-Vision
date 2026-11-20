@@ -12,6 +12,7 @@ export const Visitors: React.FC = () => {
   const [convertEmail, setConvertEmail] = useState('');
   const [convertDept, setConvertDept] = useState('Operations');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [setupToken, setSetupToken] = useState('');
 
   useEffect(() => {
     fetchVisitors();
@@ -21,10 +22,11 @@ export const Visitors: React.FC = () => {
     try {
       const res = await api.get(`/visitors?search=${search}`);
       if (res.data.success) {
+        setSetupToken(res.data.setupToken || '');
         setVisitors(res.data.visitors);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setVisitors([]);
     }
   };
 
@@ -44,8 +46,8 @@ export const Visitors: React.FC = () => {
         setSelectedVisitor(null);
         fetchVisitors();
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     } finally {
       setIsSubmitting(false);
     }
@@ -56,8 +58,8 @@ export const Visitors: React.FC = () => {
     try {
       await api.delete(`/visitors/${id}`);
       fetchVisitors();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     }
   };
 
@@ -86,6 +88,15 @@ export const Visitors: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {setupToken && <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-200 space-y-2">
+        <div className="font-semibold">Account created. Share this one-time password setup link with the user within 24 hours.</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="break-all text-[11px] text-emerald-100">{`${window.location.origin}/setup-password#token=${setupToken}`}</code>
+          <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/setup-password#token=${setupToken}`)} className="px-3 py-1.5 rounded-lg border border-emerald-400/30 hover:bg-emerald-500/20">Copy link</button>
+          <button onClick={() => setSetupToken('')} className="px-3 py-1.5 rounded-lg border border-emerald-400/30 hover:bg-emerald-500/20">Dismiss</button>
+        </div>
+      </div>}
 
       {/* Visitors Snapshot Gallery Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

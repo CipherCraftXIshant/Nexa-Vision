@@ -25,8 +25,8 @@ export const Admin: React.FC = () => {
       if (res.data.success) {
         setUsers(res.data.users);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setUsers([]);
     }
   };
 
@@ -36,8 +36,8 @@ export const Admin: React.FC = () => {
       if (res.data.success) {
         setSettings(res.data.settings);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     }
   };
 
@@ -45,8 +45,8 @@ export const Admin: React.FC = () => {
     try {
       await api.put(`/users/${userId}`, { role: newRole });
       fetchUsers();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     }
   };
 
@@ -55,8 +55,8 @@ export const Admin: React.FC = () => {
     try {
       await api.delete(`/users/${userId}`);
       fetchUsers();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     }
   };
 
@@ -65,8 +65,8 @@ export const Admin: React.FC = () => {
       await api.put('/admin/settings', settings);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     }
   };
 

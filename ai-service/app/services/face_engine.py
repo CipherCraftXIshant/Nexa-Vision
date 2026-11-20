@@ -37,15 +37,6 @@ class FaceEngine:
         results = []
         img_h, img_w = image_np.shape[:2]
 
-        # If Haar cascade didn't catch a face, fallback to whole centered ROI if image looks like portrait
-        if len(faces) == 0 and img_h >= 100 and img_w >= 100:
-            # Fallback face ROI
-            w_crop = int(img_w * 0.7)
-            h_crop = int(img_h * 0.7)
-            x_crop = (img_w - w_crop) // 2
-            y_crop = (img_h - h_crop) // 2
-            faces = [(x_crop, y_crop, w_crop, h_crop)]
-
         for (x, y, w, h) in faces:
             # Clamp box boundaries
             x, y = max(0, int(x)), max(0, int(y))

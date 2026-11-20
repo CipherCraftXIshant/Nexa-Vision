@@ -19,6 +19,17 @@ Creates a new platform user account.
 ### `POST /auth/login`
 Authenticates credentials and returns JWT Access & Refresh Token pair.
 
+### `POST /auth/logout` (authenticated)
+Revokes the current server-side session and disconnects its Socket.IO connection.
+
+### `POST /auth/refresh`
+Accepts `{ "refreshToken": "..." }`. The token must match a live stored session; successful refresh rotates the token. Reuse of the previous token is rejected.
+
+### `POST /auth/setup-password`
+Accepts `{ "token": "...", "password": "..." }` for an unexpired, one-time invitation token. Passwords must contain at least 12 characters.
+
+Public registration only creates `USER` accounts. Administrators change roles through the protected user administration endpoint.
+
 ---
 
 ## Recognition Endpoints

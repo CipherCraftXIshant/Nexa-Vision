@@ -23,3 +23,4 @@ export const updateSystemSettings = async (req: Request, res: Response) => {
     settings: systemSettings
   });
 };
+

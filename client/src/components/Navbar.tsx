@@ -22,8 +22,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCommandPalette }) => {
           setNotifications(res.data.notifications);
           setUnreadCount(res.data.unreadCount);
         }
-      } catch (err) {
-        console.error(err);
+      } catch {
+        setNotifications([]);
       }
     };
     fetchNotifs();
@@ -45,8 +45,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenCommandPalette }) => {
       await api.put('/notifications/mark-all-read');
       setUnreadCount(0);
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Keep server error details out of browser logs.
     }
   };
 

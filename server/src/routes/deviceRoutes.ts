@@ -7,7 +7,7 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', getDevices);
+router.get('/', checkRole(['SUPER_ADMIN', 'ADMIN', 'OPERATOR']), getDevices);
 router.post('/', checkRole(['SUPER_ADMIN', 'ADMIN']), createDevice);
 router.put('/:id', checkRole(['SUPER_ADMIN', 'ADMIN']), updateDevice);
 

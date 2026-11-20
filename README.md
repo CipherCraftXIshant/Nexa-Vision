@@ -38,6 +38,8 @@ NexaVision/
 
 ### Running Locally
 
+Create `server/.env` from `server/.env.example`, then set `MONGODB_URI`, `JWT_SECRET`, and `JWT_REFRESH_SECRET` before starting the API. Use two different random secrets with at least 32 characters. For example, generate each with `openssl rand -hex 32` and place the outputs in the local environment file. The API exits during startup if the secrets are absent or invalid.
+
 1. **Start AI Microservice (Python FastAPI)**:
    ```bash
    cd ai-service
@@ -49,7 +51,7 @@ NexaVision/
    ```bash
    cd server
    npm install
-   npm run seed    # Seeds default admin, users, visitors, and camera devices
+   SEED_PASSWORD='choose-a-unique-password-at-least-12-chars' npm run seed
    npm run dev
    ```
 
@@ -62,9 +64,7 @@ NexaVision/
 
 Open your browser at `http://localhost:5173`.
 
-### Demo Login Credentials
-- **Super Admin**: `admin@nexavision.io` | `Password@123`
-- **Security Officer**: `sarah.c@nexavision.io` | `Password@123`
+The seed command clears existing seeded collections. It requires `SEED_PASSWORD` and uses that value for the seeded accounts. Do not run it against a database containing data you need to keep.
 
 ---
 
@@ -74,8 +74,10 @@ To launch the entire platform stack using Docker Compose:
 
 ```bash
 cd docker
-docker-compose up --build -d
+JWT_SECRET="$(openssl rand -hex 32)" JWT_REFRESH_SECRET="$(openssl rand -hex 32)" docker compose up --build -d
 ```
+
+For a persistent deployment, set both secrets and `CLIENT_URL` in your deployment environment. Never commit those values.
 
 Services will be accessible at:
 - **Client Web App**: `http://localhost:80`

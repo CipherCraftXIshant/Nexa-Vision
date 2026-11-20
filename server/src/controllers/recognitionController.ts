@@ -6,8 +6,10 @@ import { User } from '../models/User';
 import { Visitor } from '../models/Visitor';
 import { Notification } from '../models/Notification';
 import { getSocketIO } from '../socket';
+import { randomBytes } from 'crypto';
+import { AuthRequest } from '../middleware/auth';
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000/api/v1';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
 
 export const getRecognitionLogs = async (req: Request, res: Response) => {
   try {
@@ -67,14 +69,16 @@ export const getRecognitionLogs = async (req: Request, res: Response) => {
 
 export const processCameraFrame = async (req: Request, res: Response) => {
   try {
-    const { image, cameraLocation = 'Cam 01 - Main Entrance' } = req.body;
-    if (!image) {
+    const { image, cameraLocation = 'Cam 01 - Main Entrance', threshold = 0.65 } = req.body;
+    if (typeof image !== 'string' || !image) {
       return res.status(400).json({ success: false, message: 'Camera frame image is required.' });
     }
+    if (typeof threshold !== 'number' || threshold < 0.4 || threshold > 0.95) return res.status(400).json({ success: false, message: 'Threshold must be between 0.4 and 0.95.' });
+    if (typeof cameraLocation !== 'string' || cameraLocation.length > 200) return res.status(400).json({ success: false, message: 'Camera location is invalid.' });
 
     // Fetch registered candidate embeddings from DB
-    const embeddingsDocs = await FaceEmbedding.find().populate('userId', 'name role avatar department');
-    const candidates = embeddingsDocs.map(doc => {
+    const embeddingsDocs = await FaceEmbedding.find().populate({ path: 'userId', match: { isActive: true }, select: 'name role avatar department isActive' });
+    const candidates = embeddingsDocs.filter(doc => doc.userId).map(doc => {
       const userObj = doc.userId as any;
       return {
         id: userObj._id.toString(),
@@ -89,33 +93,21 @@ export const processCameraFrame = async (req: Request, res: Response) => {
     // Call Python AI Microservice
     let aiResponse;
     try {
+      if (!AI_SERVICE_URL) throw new Error('AI_SERVICE_URL is not configured');
       const resAI = await axios.post(`${AI_SERVICE_URL}/recognize`, {
         image,
         candidates,
-        threshold: 0.65
-      });
+        threshold
+      }, { timeout: 15000 });
       aiResponse = resAI.data;
     } catch (err: any) {
-      // Fallback response if AI service is not running
-      aiResponse = {
-        success: true,
-        results: [
-          {
-            boundingBox: { x: 140, y: 80, width: 220, height: 220 },
-            detectionConfidence: 0.98,
-            qualityScore: 0.88,
-            livenessScore: 0.92,
-            matched: candidates.length > 0,
-            matchConfidence: candidates.length > 0 ? 0.91 : 0.45,
-            personId: candidates.length > 0 ? candidates[0].id : undefined,
-            personName: candidates.length > 0 ? candidates[0].name : 'Unknown Visitor',
-            personRole: candidates.length > 0 ? candidates[0].role : 'USER',
-            personType: candidates.length > 0 ? 'User' : 'Visitor',
-            avatarUrl: candidates.length > 0 ? candidates[0].avatarUrl : image
-          }
-        ]
-      };
+      if (axios.isAxiosError(err) && err.response) {
+        return res.status(err.response.status === 422 ? 422 : 502).json({ success: false, message: 'Vision service rejected the frame.' });
+      }
+      return res.status(503).json({ success: false, message: 'Vision service is unavailable. No recognition was recorded.' });
     }
+    if (aiResponse?.success && aiResponse.recognized === false && Array.isArray(aiResponse.faces)) aiResponse.results = [];
+    if (!aiResponse?.success || !Array.isArray(aiResponse.results)) return res.status(502).json({ success: false, message: 'Vision service returned an invalid recognition response.' });
 
     const io = getSocketIO();
     const processedResults = [];
@@ -127,12 +119,12 @@ export const processCameraFrame = async (req: Request, res: Response) => {
       const statusStr = isMatched ? 'SUCCESS' : 'UNKNOWN';
 
       const log = new RecognitionLog({
-        personId: result.personId || `VIS-${Date.now().toString().slice(-5)}`,
+        personId: result.personId || `VIS-${randomBytes(8).toString('hex')}`,
         personType,
         personName,
         cameraLocation,
-        confidence: result.matchConfidence || result.detectionConfidence,
-        snapshotUrl: image.length > 1000 ? image : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+        confidence: result.matchConfidence ?? result.detectionConfidence,
+        snapshotUrl: image,
         status: statusStr,
         livenessScore: result.livenessScore,
         qualityScore: result.qualityScore
@@ -143,7 +135,7 @@ export const processCameraFrame = async (req: Request, res: Response) => {
 
       // If Unknown, register or update visitor record and fire socket alert
       if (!isMatched) {
-        const visitorIdStr = `VIS-${Date.now().toString().slice(-6)}`;
+        const visitorIdStr = `VIS-${randomBytes(8).toString('hex')}`;
         const newVisitor = new Visitor({
           visitorId: visitorIdStr,
           name: 'Unknown Visitor',
@@ -162,7 +154,7 @@ export const processCameraFrame = async (req: Request, res: Response) => {
         await notif.save();
 
         if (io) {
-          io.emit('notification:new', {
+          io.to('authorized-operators').emit('notification:new', {
             id: notif._id,
             title: notif.title,
             message: notif.message,
@@ -173,14 +165,16 @@ export const processCameraFrame = async (req: Request, res: Response) => {
       }
 
       if (io) {
-        io.emit('recognition:event', {
+        io.to('authorized-operators').emit('recognition:event', {
+          id: log._id,
           logId: log._id,
           personName,
           personType,
           cameraLocation,
           confidence: log.confidence,
           status: statusStr,
-          timestamp: log.timestamp
+          timestamp: log.timestamp,
+          snapshotUrl: log.snapshotUrl
         });
       }
     }
@@ -195,28 +189,32 @@ export const processCameraFrame = async (req: Request, res: Response) => {
   }
 };
 
-export const registerUserFace = async (req: Request, res: Response) => {
+export const registerUserFace = async (req: AuthRequest, res: Response) => {
   try {
     const { userId, image } = req.body;
-    if (!userId || !image) {
+    if (typeof userId !== 'string' || typeof image !== 'string' || !image) {
       return res.status(400).json({ success: false, message: 'User ID and Image string are required.' });
+    }
+
+    if (req.user?.id !== String(userId) && !['SUPER_ADMIN', 'ADMIN'].includes(req.user?.role || '')) {
+      return res.status(403).json({ success: false, message: 'You may only enroll your own face.' });
     }
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+    if (!user.isActive) return res.status(403).json({ success: false, message: 'Inactive users cannot enroll a face.' });
 
     let aiRes;
     try {
-      const resp = await axios.post(`${AI_SERVICE_URL}/register-face`, { image });
+      if (!AI_SERVICE_URL) throw new Error('AI_SERVICE_URL is not configured');
+      const resp = await axios.post(`${AI_SERVICE_URL}/register-face`, { image }, { timeout: 15000 });
       aiRes = resp.data;
     } catch (err: any) {
-      // Fallback vector generation
-      const mockVec = Array.from({ length: 128 }, () => Math.random() * 0.2 - 0.1);
-      aiRes = {
-        embedding: mockVec,
-        qualityScore: 0.88,
-        livenessScore: 0.94
-      };
+      if (axios.isAxiosError(err) && err.response) return res.status(err.response.status === 422 ? 422 : 502).json({ success: false, message: 'Vision service rejected the enrollment image.' });
+      return res.status(503).json({ success: false, message: 'Vision service is unavailable. Face enrollment was not saved.' });
+    }
+    if (!aiRes?.success || !Array.isArray(aiRes.embedding) || aiRes.embedding.length === 0 || !aiRes.embedding.every((n: unknown) => typeof n === 'number' && Number.isFinite(n))) {
+      return res.status(502).json({ success: false, message: 'Vision service returned an invalid face embedding.' });
     }
 
     const embeddingDoc = new FaceEmbedding({
@@ -238,7 +236,8 @@ export const registerUserFace = async (req: Request, res: Response) => {
       success: true,
       message: 'Face registered successfully and 128-d embedding saved.',
       embeddingId: embeddingDoc._id,
-      qualityScore: aiRes.qualityScore
+      qualityScore: aiRes.qualityScore,
+      livenessScore: aiRes.livenessScore
     });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });

@@ -23,6 +23,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    const updateToken = () => setToken(localStorage.getItem('nexavision_access_token'));
+    window.addEventListener('nexavision:session-updated', updateToken);
     const verifyUser = async () => {
       if (token) {
         try {
@@ -39,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     };
     verifyUser();
+    return () => window.removeEventListener('nexavision:session-updated', updateToken);
   }, [token]);
 
   const login = async (email: string, pass: string): Promise<boolean> => {
@@ -54,12 +57,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return true;
       }
     } catch (err) {
-      console.error('Login failed:', err);
+      // The visible login message is generic; do not log request details or credentials.
     }
     return false;
   };
 
   const logout = () => {
+    const refreshToken = localStorage.getItem('nexavision_refresh_token');
+    if (refreshToken) api.post('/auth/logout', { refreshToken }).catch(() => undefined);
     localStorage.removeItem('nexavision_access_token');
     localStorage.removeItem('nexavision_refresh_token');
     localStorage.removeItem('nexavision_user');

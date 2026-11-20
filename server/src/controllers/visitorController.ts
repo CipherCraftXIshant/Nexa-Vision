@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { Visitor } from '../models/Visitor';
 import { User } from '../models/User';
-import bcrypt from 'bcryptjs';
+import { Invitation } from '../models/Invitation';
+import { createInvitationToken } from './authController';
+import { hashToken } from '../config/security';
 
 export const getVisitors = async (req: Request, res: Response) => {
   try {
@@ -68,30 +70,32 @@ export const updateVisitor = async (req: Request, res: Response) => {
 export const convertVisitorToUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, email, department, role } = req.body;
+    const { name, email, department } = req.body;
 
     const visitor = await Visitor.findById(id);
     if (!visitor) return res.status(404).json({ success: false, message: 'Visitor not found' });
+    if (visitor.status === 'CONVERTED') return res.status(409).json({ success: false, message: 'Visitor has already been converted.' });
 
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ success: false, message: 'A valid email address is required.' });
+    const existingUser = await User.findOne({ email: email.trim().toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User with this email already exists' });
     }
 
-    const defaultPassword = 'Password@123';
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(defaultPassword, salt);
+    const setupToken = createInvitationToken();
 
     const newUser = new User({
       name: name || visitor.name || 'Converted Visitor',
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      role: role || 'USER',
+      email: email.trim().toLowerCase(),
+      role: 'USER',
       department: department || 'Visitor Converted',
-      avatar: visitor.snapshotUrl
+      avatar: visitor.snapshotUrl,
+      isVerified: false
     });
 
     await newUser.save();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await Invitation.create({ userId: newUser._id, tokenHash: hashToken(setupToken), expiresAt });
 
     visitor.status = 'CONVERTED';
     visitor.name = newUser.name;
@@ -99,7 +103,9 @@ export const convertVisitorToUser = async (req: Request, res: Response) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Visitor successfully converted to Registered User.',
+      message: 'Visitor converted. Deliver the one-time password setup token to the user within 24 hours.',
+      setupToken,
+      setupTokenExpiresAt: expiresAt,
       user: {
         id: newUser._id,
         name: newUser.name,

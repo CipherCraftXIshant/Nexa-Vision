@@ -4,8 +4,8 @@ import { Sparkles, Shield, ArrowRight, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('admin@nexavision.io');
-  const [password, setPassword] = useState('Password@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
@@ -93,26 +93,6 @@ export const Login: React.FC = () => {
           </button>
         </form>
 
-        {/* Demo Credential Quick-Select */}
-        <div className="mt-8 pt-6 border-t border-dark-border">
-          <p className="text-[11px] font-mono uppercase text-slate-400 text-center mb-3">Pre-configured Demo Accounts</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => { setEmail('admin@nexavision.io'); setPassword('Password@123'); }}
-              className="p-2 rounded-xl bg-dark-bg/60 border border-dark-border hover:border-brand-500/50 text-[11px] text-slate-300 text-left transition-colors"
-            >
-              <span className="font-bold text-white block">Super Admin</span>
-              <span className="text-slate-400 text-[10px]">admin@nexavision.io</span>
-            </button>
-            <button
-              onClick={() => { setEmail('sarah.c@nexavision.io'); setPassword('Password@123'); }}
-              className="p-2 rounded-xl bg-dark-bg/60 border border-dark-border hover:border-brand-500/50 text-[11px] text-slate-300 text-left transition-colors"
-            >
-              <span className="font-bold text-white block">Security Officer</span>
-              <span className="text-slate-400 text-[10px]">sarah.c@nexavision.io</span>
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/CommandPalette';
 
 import { Login } from './pages/Auth/Login';
+import { PasswordSetup } from './pages/Auth/PasswordSetup';
 import { Dashboard } from './pages/Dashboard/Dashboard';
 import { LiveCamera } from './pages/LiveCamera/LiveCamera';
 import { FaceRegistration } from './pages/FaceRegistration/FaceRegistration';
@@ -60,6 +61,7 @@ export const App: React.FC = () => {
         <SocketProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/setup-password" element={<PasswordSetup />} />
             <Route
               path="/*"
               element={

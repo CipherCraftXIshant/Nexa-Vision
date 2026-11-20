@@ -1,18 +1,19 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Camera, CameraOff, RefreshCw, ShieldAlert, CheckCircle2, Eye, Cpu, Zap, Radio, Sliders } from 'lucide-react';
+import { Camera, CameraOff, RefreshCw, CheckCircle2, Cpu, Zap, Radio } from 'lucide-react';
 import { api } from '../../services/api';
 
 export const LiveCamera: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scanInFlight = useRef(false);
   const [streamActive, setStreamActive] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [cameraLocation, setCameraLocation] = useState('Cam 01 - Main Entrance');
   const [detectedPerson, setDetectedPerson] = useState<any>(null);
-  const [fps, setFps] = useState(30);
-  const [latencyMs, setLatencyMs] = useState(42);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.65);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
 
   useEffect(() => {
     startWebcam();
@@ -31,7 +32,7 @@ export const LiveCamera: React.FC = () => {
         setStreamActive(true);
       }
     } catch (err) {
-      console.warn('Webcam permission missing or unavailable. Utilizing simulated stream renderer.', err);
+      console.warn('Camera permission is missing or the camera is unavailable.');
       setStreamActive(false);
     }
   };
@@ -58,7 +59,10 @@ export const LiveCamera: React.FC = () => {
 
   // Process frame trigger simulation
   const captureAndRecognize = async () => {
+    if (scanInFlight.current) return;
+    scanInFlight.current = true;
     setIsScanning(true);
+    setScanError('');
     const start = performance.now();
     try {
       let imageData = '';
@@ -74,14 +78,12 @@ export const LiveCamera: React.FC = () => {
         }
       }
 
-      // Fallback sample image if real webcam is inactive
-      if (!imageData) {
-        imageData = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD...';
-      }
+      if (!imageData) throw new Error('Camera feed is unavailable. Start a camera before processing a frame.');
 
       const res = await api.post('/recognition/process-frame', {
         image: imageData,
-        cameraLocation
+        cameraLocation,
+        threshold: confidenceThreshold
       });
 
       const elapsed = Math.round(performance.now() - start);
@@ -90,25 +92,27 @@ export const LiveCamera: React.FC = () => {
       if (res.data.success && res.data.results.length > 0) {
         const top = res.data.results[0];
         setDetectedPerson({
-          name: top.personName || 'Alex Vance',
-          type: top.personType || 'User',
-          role: top.personRole || 'SUPER_ADMIN',
-          confidence: top.matchConfidence || 0.94,
-          liveness: top.livenessScore || 0.96,
-          quality: top.qualityScore || 0.92,
-          avatar: top.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-          bbox: top.boundingBox || { x: 260, y: 140, width: 200, height: 200 }
+          name: top.personName || 'Unknown Visitor',
+          type: top.personType || 'Visitor',
+          role: top.personRole,
+          confidence: top.matchConfidence ?? top.detectionConfidence ?? 0,
+          liveness: top.livenessScore,
+          quality: top.qualityScore,
+          avatar: top.avatarUrl,
+          bbox: top.boundingBox,
+          matched: Boolean(top.matched)
         });
-      }
+      } else setDetectedPerson(null);
     } catch (err) {
-      console.error(err);
+      setScanError((err as any)?.response?.data?.message || (err as Error).message || 'Frame processing failed.');
     } finally {
+      scanInFlight.current = false;
       setIsScanning(false);
     }
   };
 
   useEffect(() => {
-    if (!cameraEnabled) return;
+    if (!cameraEnabled || !streamActive) return;
     const interval = setInterval(() => {
       captureAndRecognize();
     }, 3000);
@@ -162,6 +166,7 @@ export const LiveCamera: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {scanError && <div className="lg:col-span-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">{scanError}</div>}
         {/* Main Video Stream Player with Bounding Box Overlay */}
         <div className="lg:col-span-2 bg-dark-card border border-dark-border rounded-3xl overflow-hidden relative shadow-2xl glass-panel aspect-video flex items-center justify-center">
           <video
@@ -175,17 +180,12 @@ export const LiveCamera: React.FC = () => {
 
           {cameraEnabled && !streamActive && (
             <div className="relative w-full h-full bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-              <img
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80"
-                alt="Simulated Stream"
-                className="absolute inset-0 w-full h-full object-cover opacity-30"
-              />
               <div className="relative z-10 space-y-3">
                 <div className="w-12 h-12 rounded-2xl bg-brand-500/20 text-brand-accent flex items-center justify-center mx-auto border border-brand-500/30">
                   <Camera className="w-6 h-6 animate-pulse" />
                 </div>
-                <h3 className="text-sm font-bold text-white">Simulated Stream Mode Active</h3>
-                <p className="text-xs text-slate-400 max-w-sm">Webcam feed stream active with AI frame inference relay.</p>
+                <h3 className="text-sm font-bold text-white">Camera unavailable</h3>
+                <p className="text-xs text-slate-400 max-w-sm">Allow camera access or connect a camera before processing frames.</p>
               </div>
             </div>
           )}
@@ -205,12 +205,12 @@ export const LiveCamera: React.FC = () => {
           {/* AI Bounding Box & HUD Overlay */}
           {detectedPerson && (
             <div
-              className="absolute border-2 border-emerald-400 rounded-xl neon-border transition-all duration-300 pointer-events-none"
+              className={`absolute border-2 rounded-xl transition-all duration-300 pointer-events-none ${detectedPerson.matched ? 'border-emerald-400 neon-border' : 'border-amber-400'}`}
               style={{
-                top: '20%',
-                left: '35%',
-                width: '30%',
-                height: '50%'
+                top: `${((detectedPerson.bbox?.y || 0) / (videoRef.current?.videoHeight || 720)) * 100}%`,
+                left: `${((detectedPerson.bbox?.x || 0) / (videoRef.current?.videoWidth || 1280)) * 100}%`,
+                width: `${((detectedPerson.bbox?.width || 0) / (videoRef.current?.videoWidth || 1280)) * 100}%`,
+                height: `${((detectedPerson.bbox?.height || 0) / (videoRef.current?.videoHeight || 720)) * 100}%`
               }}
             >
               <div className="absolute -top-7 left-0 bg-emerald-500 text-black text-[10px] font-mono font-bold px-2 py-0.5 rounded flex items-center gap-1 shadow-lg">
@@ -225,12 +225,12 @@ export const LiveCamera: React.FC = () => {
             <div className="flex items-center gap-3 bg-dark-card/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-dark-border text-[11px] font-mono text-slate-300">
               <span className="flex items-center gap-1">
                 <Cpu className="w-3.5 h-3.5 text-brand-accent" />
-                <span>FPS: {fps}</span>
+                <span>Scan interval: 3s</span>
               </span>
               <span className="text-slate-600">|</span>
               <span className="flex items-center gap-1">
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>Latency: {latencyMs}ms</span>
+                <span>Latency: {latencyMs === null ? '—' : `${latencyMs}ms`}</span>
               </span>
             </div>
 
@@ -248,15 +248,11 @@ export const LiveCamera: React.FC = () => {
             {detectedPerson ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
-                  <img
-                    src={detectedPerson.avatar}
-                    alt={detectedPerson.name}
-                    className="w-16 h-16 rounded-2xl object-cover border-2 border-brand-500 shadow-xl"
-                  />
+                  {detectedPerson.avatar && <img src={detectedPerson.avatar} alt={detectedPerson.name} className="w-16 h-16 rounded-2xl object-cover border-2 border-brand-500 shadow-xl" />}
                   <div>
                     <h4 className="text-base font-bold text-white">{detectedPerson.name}</h4>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-500/20 text-brand-accent border border-brand-500/30 uppercase inline-block mt-1">
-                      {detectedPerson.role}
+                      {detectedPerson.matched ? detectedPerson.role || 'Registered user' : 'Unregistered'}
                     </span>
                   </div>
                 </div>
@@ -271,7 +267,7 @@ export const LiveCamera: React.FC = () => {
                   <div className="p-3 rounded-2xl bg-dark-bg/60 border border-dark-border">
                     <span className="text-[10px] text-slate-400 uppercase font-mono block">Liveness Score</span>
                     <span className="text-sm font-bold font-mono text-brand-accent">
-                      {(detectedPerson.liveness * 100).toFixed(1)}%
+                      {typeof detectedPerson.liveness === 'number' ? `${(detectedPerson.liveness * 100).toFixed(1)}%` : 'Not reported'}
                     </span>
                   </div>
                 </div>

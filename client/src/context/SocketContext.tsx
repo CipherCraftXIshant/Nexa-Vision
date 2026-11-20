@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useAuth } from './AuthContext';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -9,12 +10,19 @@ interface SocketContextType {
 const SocketContext = createContext<SocketContextType>({ socket: null, isConnected: false });
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { token, user } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const s = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5001', {
-      transports: ['websocket', 'polling']
+    if (!token || user?.role === 'USER') {
+      setSocket(null);
+      setIsConnected(false);
+      return;
+    }
+    const s = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, {
+      transports: ['websocket', 'polling'],
+      auth: { token }
     });
 
     s.on('connect', () => {
@@ -24,15 +32,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     s.on('disconnect', () => {
       setIsConnected(false);
-      console.log('[Socket.IO Client] Disconnected.');
     });
+
+    s.on('connect_error', () => setIsConnected(false));
 
     setSocket(s);
 
     return () => {
       s.disconnect();
     };
-  }, []);
+  }, [token, user?.role]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

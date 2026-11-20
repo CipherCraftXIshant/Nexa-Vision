@@ -3,13 +3,14 @@ import { Users, UserCheck, Eye, AlertOctagon, CheckCircle, Video, Activity, Spar
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from 'recharts';
 import { StatCard } from '../../components/StatCard';
 import { api } from '../../services/api';
-import { IDashboardStats, IRecognitionLog } from '../../../../shared/types';
+import { IDashboardStats, IDevice, IRecognitionLog } from '../../../../shared/types';
 import { useSocket } from '../../context/SocketContext';
 
 export const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<IDashboardStats | null>(null);
   const [weeklyTrends, setWeeklyTrends] = useState<any[]>([]);
   const [recentEvents, setRecentEvents] = useState<IRecognitionLog[]>([]);
+  const [devices, setDevices] = useState<IDevice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { socket } = useSocket();
 
@@ -21,9 +22,10 @@ export const Dashboard: React.FC = () => {
           setStats(res.data.stats);
           setWeeklyTrends(res.data.weeklyTrends);
           setRecentEvents(res.data.recentEvents);
+          setDevices(res.data.devices || []);
         }
-      } catch (err) {
-        console.error(err);
+      } catch {
+        setStats(null);
       } finally {
         setIsLoading(false);
       }
@@ -48,17 +50,17 @@ export const Dashboard: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-brand-accent text-xs font-mono mb-1">
             <Sparkles className="w-4 h-4 animate-spin-slow" />
-            <span>AI VISION INTELLIGENCE OPERATIONAL</span>
+            <span>VISION ACTIVITY OVERVIEW</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">Security & Recognition Control</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">Recognition Dashboard</h1>
           <p className="text-xs text-slate-400 mt-1">Real-time facial detection, registered identity verification, and perimeter telemetry.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 rounded-2xl bg-dark-bg/80 border border-dark-border flex items-center gap-3">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-mono block">System Status</span>
-              <span className="text-xs font-bold text-emerald-400">100% OPERATIONAL</span>
+              <span className="text-[10px] text-slate-400 uppercase font-mono block">API Data</span>
+              <span className="text-xs font-bold text-emerald-400">{isLoading ? 'LOADING' : stats ? 'CURRENT' : 'UNAVAILABLE'}</span>
             </div>
           </div>
         </div>
@@ -68,8 +70,8 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           title="Registered Identities"
-          value={stats?.totalRegisteredUsers || 42}
-          change="+12.4%"
+          value={stats?.totalRegisteredUsers ?? 0}
+          change=""
           isPositive={true}
           icon={Users}
           color="from-indigo-600 to-brand-500"
@@ -77,24 +79,24 @@ export const Dashboard: React.FC = () => {
         />
         <StatCard
           title="Active Today"
-          value={stats?.activeUsersCount || 38}
-          change="+8.1%"
+          value={stats?.activeUsersCount ?? 0}
+          change=""
           isPositive={true}
           icon={UserCheck}
           color="from-emerald-600 to-teal-500"
         />
         <StatCard
           title="Visitors Logged"
-          value={stats?.visitorsToday || 14}
-          change="+5.2%"
+          value={stats?.visitorsToday ?? 0}
+          change=""
           isPositive={true}
           icon={Eye}
           color="from-amber-600 to-orange-500"
         />
         <StatCard
           title="Unknown Detections"
-          value={stats?.unknownFacesCount || 3}
-          change="-14.2%"
+          value={stats?.unknownFacesCount ?? 0}
+          change=""
           isPositive={true}
           icon={AlertOctagon}
           color="from-rose-600 to-pink-500"
@@ -112,7 +114,7 @@ export const Dashboard: React.FC = () => {
               <p className="text-xs text-slate-400">Weekly face recognition verifications vs detections</p>
             </div>
             <span className="text-xs font-mono text-brand-accent bg-brand-500/10 px-2.5 py-1 rounded-full border border-brand-500/20">
-              Accuracy: 99.2%
+              Success rate: {stats?.recognitionSuccessRate ?? 0}%
             </span>
           </div>
 
@@ -146,28 +148,23 @@ export const Dashboard: React.FC = () => {
         <div className="p-6 rounded-3xl bg-dark-card border border-dark-border glass-panel space-y-5">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">Active Cameras</h3>
-            <span className="text-xs font-mono text-emerald-400">4 / 4 ONLINE</span>
+            <span className="text-xs font-mono text-emerald-400">{stats?.cameraStatus.online ?? 0} / {stats?.cameraStatus.total ?? 0} ONLINE</span>
           </div>
 
           <div className="space-y-3">
-            {[
-              { name: 'Cam 01 - Main Entrance', loc: 'Lobby HQ', status: 'ONLINE', fps: 30 },
-              { name: 'Cam 02 - Server Vault', loc: 'Basement Floor 1', status: 'ONLINE', fps: 60 },
-              { name: 'Cam 03 - Perimeter Gate B', loc: 'North Fence', status: 'ONLINE', fps: 30 },
-              { name: 'Cam 04 - Executive Suite', loc: 'Floor 12', status: 'ONLINE', fps: 30 }
-            ].map((cam, idx) => (
-              <div key={idx} className="p-3 rounded-2xl bg-dark-bg/60 border border-dark-border flex items-center justify-between">
+            {devices.map((cam) => (
+              <div key={cam.id} className="p-3 rounded-2xl bg-dark-bg/60 border border-dark-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
                     <Video className="w-4 h-4" />
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-white">{cam.name}</p>
-                    <p className="text-[10px] text-slate-400">{cam.loc}</p>
+                    <p className="text-[10px] text-slate-400">{cam.location}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-mono text-emerald-400 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 block mb-0.5">
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border block mb-0.5 ${cam.status === 'ONLINE' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'}`}>
                     {cam.status}
                   </span>
                   <span className="text-[10px] text-slate-500 font-mono">{cam.fps} FPS</span>
@@ -195,11 +192,7 @@ export const Dashboard: React.FC = () => {
           {recentEvents.map((log, index) => (
             <div key={log.id || index} className="py-3.5 flex items-center justify-between hover:bg-slate-800/30 px-3 rounded-xl transition-colors">
               <div className="flex items-center gap-3">
-                <img
-                  src={log.snapshotUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80'}
-                  alt={log.personName}
-                  className="w-10 h-10 rounded-xl object-cover border border-dark-border"
-                />
+                {log.snapshotUrl ? <img src={log.snapshotUrl} alt={log.personName} className="w-10 h-10 rounded-xl object-cover border border-dark-border" /> : <div className="w-10 h-10 rounded-xl bg-slate-800 border border-dark-border flex items-center justify-center text-xs font-bold text-slate-300">{log.personName.slice(0, 1).toUpperCase()}</div>}
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-white">{log.personName}</span>
